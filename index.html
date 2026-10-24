@@ -51,6 +51,16 @@ nav a:hover{color:var(--teal)}
 .photo img{width:100%;height:100%;object-fit:cover;display:block}
 @keyframes rise{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:none}}
 
+/* latest from github */
+.latest{padding:2.5rem 0;border-top:1px solid var(--line)}
+.live{display:inline-flex;align-items:center;gap:.5rem;font-weight:600;font-size:.9rem;color:var(--teal);margin-bottom:.8rem}
+.live::before{content:"";width:.6rem;height:.6rem;border-radius:50%;background:var(--amber);animation:pulse 1.8s ease-in-out infinite}
+@keyframes pulse{50%{opacity:.3}}
+.gh{display:grid;grid-template-columns:1fr auto;gap:1.5rem;align-items:center}
+.gh .stats{display:flex;gap:1rem;flex-wrap:wrap;color:var(--muted);font-size:.92rem;margin:.6rem 0 0}
+.commit{margin-top:.8rem;padding:.6rem .9rem;border-left:3px solid var(--amber);background:var(--bg);border-radius:0 8px 8px 0;font-size:.95rem}
+@media (max-width:760px){.gh{grid-template-columns:1fr}}
+
 section{padding:3.5rem 0;border-top:1px solid var(--line)}
 h2{font:700 clamp(1.7rem,4vw,2.3rem)/1.15 var(--head);letter-spacing:-.02em;margin-bottom:1.6rem}
 h3{font:700 1.3rem/1.25 var(--head)}
@@ -110,6 +120,7 @@ footer{padding:2rem 0;border-top:1px solid var(--line);color:var(--muted);font-s
   <div class="wrap">
     <a class="logo" href="#top">Timothy Kiprop</a>
     <nav aria-label="Main">
+      <a href="#latest">Latest</a>
       <a href="#about">About</a>
       <a href="#projects">Projects</a>
       <a href="#skills">Skills</a>
@@ -125,13 +136,30 @@ footer{padding:2rem 0;border-top:1px solid var(--line);color:var(--muted);font-s
     <div class="wrap">
       <div>
         <h1>I build systems that turn data into decisions.</h1>
-        <p>I’m Tim, a Kenyan computer scientist now studying for an MSc in Artificial Intelligence at the University of South Wales. I’m a researcher who uses machine learning on satellite imagery and builds web tools for real communities.</p>
+        <p>I’m Tim, a Kenyan computer scientist now studying for an MSc in Artificial Intelligence at the University of South Wales. I’m a published researcher who uses machine learning on satellite imagery and builds web tools for real communities.</p>
         <div class="btns">
           <a class="btn main" href="#projects">See my projects</a>
           <a class="btn ghost" href="#contact">Get in touch</a>
         </div>
       </div>
-      <div class="photo"><img src="assets/img/timo.jpeg" alt="Portrait of Timothy Kiprop" onerror="this.remove()"></div>
+      <div class="photo"><img src="assets/img/tim.png" alt="Portrait of Timothy Kiprop" onerror="this.remove()"></div>
+    </div>
+  </div>
+
+  <div class="latest" id="latest">
+    <div class="wrap">
+      <div class="card">
+        <span class="live">Currently working on</span>
+        <div class="gh">
+          <div>
+            <h3 id="gh-name">Loading my latest project…</h3>
+            <p id="gh-desc" class="meta">Pulled live from GitHub.</p>
+            <div id="gh-commit" class="commit" hidden></div>
+            <p id="gh-stats" class="stats"></p>
+          </div>
+          <a id="gh-link" class="btn ghost" href="https://github.com/Korirtimo">See my GitHub</a>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -300,6 +328,59 @@ footer{padding:2rem 0;border-top:1px solid var(--line);color:var(--muted);font-s
 <footer>
   <div class="wrap">© <script>document.write(new Date().getFullYear())</script> Timothy Kiprop. All rights reserved.</div>
 </footer>
+
+<script>
+(function(){
+  var USER='Korirtimo';
+  var SKIP=['Timmm'];           // repos to ignore, such as this portfolio
+  var $=function(id){return document.getElementById(id)};
+
+  function ago(iso){
+    var d=Math.floor((Date.now()-new Date(iso))/864e5);
+    if(d<1)return 'today'; if(d===1)return 'yesterday';
+    if(d<30)return d+' days ago';
+    var m=Math.floor(d/30); return m+(m===1?' month ago':' months ago');
+  }
+  function get(url){
+    return fetch(url,{headers:{Accept:'application/vnd.github+json'}}).then(function(r){
+      if(!r.ok)throw new Error(r.status); return r.json();
+    });
+  }
+  function show(repo,msg){
+    $('gh-name').textContent=repo.name.replace(/[-_]/g,' ');
+    $('gh-desc').textContent=repo.description||'No description yet. Take a look at the code on GitHub.';
+    $('gh-link').href=repo.html_url; $('gh-link').textContent='View on GitHub';
+    var bits=[];
+    if(repo.language)bits.push(repo.language);
+    bits.push('Updated '+ago(repo.pushed_at));
+    if(repo.stargazers_count)bits.push('★ '+repo.stargazers_count);
+    $('gh-stats').textContent=bits.join(' · ');
+    if(msg){$('gh-commit').textContent='Latest commit: '+msg;$('gh-commit').hidden=false;}
+  }
+  function fail(){
+    $('gh-name').textContent='See what I’m building';
+    $('gh-desc').textContent='My latest work lives on GitHub.';
+  }
+
+  var cached=null;
+  try{cached=JSON.parse(sessionStorage.getItem('latestRepo')||'null')}catch(e){}
+  if(cached){show(cached.repo,cached.msg);return;}
+
+  get('https://api.github.com/users/'+USER+'/repos?sort=pushed&per_page=10')
+    .then(function(list){
+      var repo=list.filter(function(r){return !r.fork&&SKIP.indexOf(r.name)<0})[0];
+      if(!repo)throw new Error('none');
+      return get('https://api.github.com/repos/'+USER+'/'+repo.name+'/commits?per_page=1')
+        .then(function(c){return c[0].commit.message.split('\n')[0]})
+        .catch(function(){return ''})
+        .then(function(msg){
+          show(repo,msg);
+          try{sessionStorage.setItem('latestRepo',JSON.stringify({repo:repo,msg:msg}))}catch(e){}
+        });
+    })
+    .catch(fail);
+})();
+</script>
 
 </body>
 </html>
